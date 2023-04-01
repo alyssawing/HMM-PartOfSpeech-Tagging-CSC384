@@ -42,27 +42,17 @@ def init_training(training_list):
     
     return big_list
 
-def init_I(training_data):
+def init_I(training_data, all_tags):
     '''Given a big list of lists (each list is a sentence, each elem in the list
     is a ["word", "tag"] pair), initialize the I matrix, which is row containing
     the probability of each tag for the first word (s0) in the sentence.'''
-
-    all_tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD",
-        "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI",
-        "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0",
-        "UNC", 'VBB', 'VBD', 'VBG', 'VBI', 'VBN', 'VBZ', 'VDB', 'VDD', 'VDG', 'VDI',
-        'VDN', 'VDZ', 'VHB', 'VHD', 'VHG', 'VHI', 'VHN', 'VHZ', 'VM0', 'VVB', 'VVD',
-        'VVG', 'VVI', 'VVN', 'VVZ', 'XX0', 'ZZ0', 'AJ0-AV0', 'AJ0-VVN', 'AJ0-VVD',
-        'AJ0-NN1', 'AJ0-VVG', 'AVP-PRP', 'AVQ-CJS', 'CJS-PRP', 'CJT-DT0', 'CRD-PNI', 'NN1-NP0', 'NN1-VVB',
-        'NN1-VVG', 'NN2-VVZ', 'VVD-VVN', 'AV0-AJ0', 'VVN-AJ0', 'VVD-AJ0', 'NN1-AJ0', 'VVG-AJ0', 'PRP-AVP',
-        'CJS-AVQ', 'PRP-CJS', 'DT0-CJT', 'PNI-CRD', 'NP0-NN1', 'VVB-NN1', 'VVG-NN1', 'VVZ-NN2', 'VVN-VVD']
 
     first_tags = [] # list of the first tags for the first word of each sentence (evidence for s0)
 
     for sentence in training_data:
         first_tags.append(sentence[0][1])
     
-    print("first tags: ", first_tags)
+    # print("first tags: ", first_tags)
     first_tags = np.array(first_tags)
 
     # initialize the I matrix as a numpy list of 0's, the same length as all_tags:
@@ -75,27 +65,42 @@ def init_I(training_data):
     # print(I)
     return I # each index in I corresponds to the index of the tag in all_tags
 
-def init_T(training_data):
+def init_T(training_data, all_tags):
     '''Given the big list of lists, initialize the T (state transition) matrix,
     which is an n x n numpy array where n is the number of all tags. Each elem 
     in the matrix is the probability of transition from tag [row] to tag [col].
     In other words, the elem at index ["NPO"]["ADJ"] is the probability of transitioning
     from an NPO tag to an ADJ tag.'''
-
-    all_tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD",
-        "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI",
-        "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0",
-        "UNC", 'VBB', 'VBD', 'VBG', 'VBI', 'VBN', 'VBZ', 'VDB', 'VDD', 'VDG', 'VDI',
-        'VDN', 'VDZ', 'VHB', 'VHD', 'VHG', 'VHI', 'VHN', 'VHZ', 'VM0', 'VVB', 'VVD',
-        'VVG', 'VVI', 'VVN', 'VVZ', 'XX0', 'ZZ0', 'AJ0-AV0', 'AJ0-VVN', 'AJ0-VVD',
-        'AJ0-NN1', 'AJ0-VVG', 'AVP-PRP', 'AVQ-CJS', 'CJS-PRP', 'CJT-DT0', 'CRD-PNI', 'NN1-NP0', 'NN1-VVB',
-        'NN1-VVG', 'NN2-VVZ', 'VVD-VVN', 'AV0-AJ0', 'VVN-AJ0', 'VVD-AJ0', 'NN1-AJ0', 'VVG-AJ0', 'PRP-AVP',
-        'CJS-AVQ', 'PRP-CJS', 'DT0-CJT', 'PNI-CRD', 'NP0-NN1', 'VVB-NN1', 'VVG-NN1', 'VVZ-NN2', 'VVN-VVD']
     
     # initialize T as a numpy 2D array of 0's, the same size as all_tags:
     T = np.zeros((len(all_tags), len(all_tags)))
+    # print(len(all_tags))
+
+    for sentence in training_data:
+        # count every transition from one tag to another in the sentence.
+        # Add 1 to the corresponding elem in T for each transition
+        for i in range(len(sentence) - 1):
+            T[all_tags.index(sentence[i][1])][all_tags.index(sentence[i+1][1])] += 1
+        
+    # divide each elem in T by the total number of transitions FROM that tag
+    for i in range(len(all_tags)):
+        if np.sum(T[i]) != 0: # to prevent dividing 
+            T[i] = T[i] / np.sum(T[i])
+
+    # confirm that the sum of each row is 1 or 0:
+    # for i in range(len(all_tags)):
+    #     print("sum of row {} is {}".format(i, np.sum(T[i])))
 
     return T
+
+def init_M(training_data, all_tags):
+    '''Initialize the M (observation probabilities) dictionary, where each key
+    is a word that has been encountered in training, and each value is a list 
+    (length = 91) of probabilities of each tag for that word. P(ek | sk)'''
+
+
+
+    pass
 
 if __name__ == '__main__':
 
@@ -128,13 +133,24 @@ if __name__ == '__main__':
 
     print("output file is {}".format(args.outputfile))
 
+    all_tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD",
+        "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI",
+        "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0",
+        "UNC", 'VBB', 'VBD', 'VBG', 'VBI', 'VBN', 'VBZ', 'VDB', 'VDD', 'VDG', 'VDI',
+        'VDN', 'VDZ', 'VHB', 'VHD', 'VHG', 'VHI', 'VHN', 'VHZ', 'VM0', 'VVB', 'VVD',
+        'VVG', 'VVI', 'VVN', 'VVZ', 'XX0', 'ZZ0', 'AJ0-AV0', 'AJ0-VVN', 'AJ0-VVD',
+        'AJ0-NN1', 'AJ0-VVG', 'AVP-PRP', 'AVQ-CJS', 'CJS-PRP', 'CJT-DT0', 'CRD-PNI', 'NN1-NP0', 'NN1-VVB',
+        'NN1-VVG', 'NN2-VVZ', 'VVD-VVN', 'AV0-AJ0', 'VVN-AJ0', 'VVD-AJ0', 'NN1-AJ0', 'VVG-AJ0', 'PRP-AVP',
+        'CJS-AVQ', 'PRP-CJS', 'DT0-CJT', 'PNI-CRD', 'NP0-NN1', 'VVB-NN1', 'VVG-NN1', 'VVZ-NN2', 'VVN-VVD']
+
     # initialize the training data
     training_data = init_training(training_list)
     for sentence in training_data:
         print(sentence)
         print("")
 
-    # initialize the I matrix
-    init_I(training_data)
+    # initialize the 3 probability matrices
+    init_I(training_data, all_tags)
+    init_T(training_data, all_tags)
 
     print("Starting the tagging process.")
