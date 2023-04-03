@@ -96,11 +96,83 @@ def init_T(training_data, all_tags):
 def init_M(training_data, all_tags):
     '''Initialize the M (observation probabilities) dictionary, where each key
     is a word that has been encountered in training, and each value is a list 
-    (length = 91) of probabilities of each tag for that word. P(ek | sk)'''
+    (length = 91) of probabilities of each tag for that word. These numbers 
+    are normalized by the total number of times that TAG has appeared. P(ek | sk)'''
 
+    M = {}
+    tag_count = np.zeros(len(all_tags)) # list of the number of times each tag has appeared
 
+    for sentence in training_data:
+        for word in sentence:
+            if word[0] not in M:
+                M[word[0]] = np.zeros(len(all_tags))                
+            M[word[0]][all_tags.index(word[1])] += 1 # add 1 to the corresponding tag (word[1]) in the list at the correct index
+            tag_count[all_tags.index(word[1])] += 1 # add 1 to the corresponding tag counter list at the correct index
+    
+    # Normalize numbers in M by the total number of times that TAG has appeared (not the word)
+    for word in M:
+        for i in range(len(all_tags)):
+            if tag_count[i] != 0:
+                M[word][i] = M[word][i] / tag_count[i]
 
-    pass
+    return M
+
+def init_E(test_file):
+    '''Given the test file, create a list of lists of all the sentences and words 
+    in the test file.'''
+    E = [] # list of lists 
+    f = open(test_file, 'r')
+    W = list(map(str.rstrip, f.readlines())) # remove the newline characters too. list of all words
+    f.close()
+
+    tmp_sentence = [] # list of words in the current sentence
+    for w in W:
+        if w != "." and w != "!" and w != "?" and w != ";":
+            tmp_sentence.append(w)
+        else:
+            tmp_sentence.append(w)
+            E.append(tmp_sentence)
+            tmp_sentence = []
+    
+    # for sentence in E:
+    #     print(sentence)
+    #     print()
+
+    return E
+
+def viterbi(E, S, I, T, M):
+    '''Execute the Viterbi algorithm to predict the most likely sequence of tags.
+    The inputs to the function are:
+    - E: list of observations (all words in ONE sentence); e.g.  ["she", "walked", "downstairs", "."]
+    - S: set of hidden state values (set of all tags)
+    - I: initial probabilities row vector; P(s0)
+    - T: transition matrix; P(S_k+1 | S_k)
+    - M: observation dictionary; P(E_k | S_k)'''
+
+    prob = np.zeros((len(E), len(S)))
+    prev = np.zeros((len(E), len(S)))
+
+    # determine values for time step 0 (base case):
+    prob[0] = I*M[E[0]]
+    # print("length of prob[0]: ", len(prob[0]))
+    # print("corresponding label: ", S[np.argmax(prob[0])])
+    # print(prob[0])
+    prev[0] = None
+    x = np.argmax(prob[0])
+    print("x is: ", x)
+    print("corresponding label: ", S[x])
+
+    # time steps 1 to length(E) - 1 (recursive case):
+    for t in range(1, len(E)-1):
+        for i in range(0, len(S)-1):
+            x = np.argmax(prob[t-1][x]*T[x][i]*M[E[t]][i])
+            prob[t][i] = prob[t-1][x] * T[x][i] * M[E[t]][i]
+            prev[t][i] = x
+
+    # for l in prev:
+    #     print(l)
+
+    return prob, prev
 
 if __name__ == '__main__':
 
@@ -133,6 +205,8 @@ if __name__ == '__main__':
 
     print("output file is {}".format(args.outputfile))
 
+    print("************************* INITIALIZING DATA ************************")
+
     all_tags = ["AJ0", "AJC", "AJS", "AT0", "AV0", "AVP", "AVQ", "CJC", "CJS", "CJT", "CRD",
         "DPS", "DT0", "DTQ", "EX0", "ITJ", "NN0", "NN1", "NN2", "NP0", "ORD", "PNI",
         "PNP", "PNQ", "PNX", "POS", "PRF", "PRP", "PUL", "PUN", "PUQ", "PUR", "TO0",
@@ -150,7 +224,13 @@ if __name__ == '__main__':
         print("")
 
     # initialize the 3 probability matrices
-    init_I(training_data, all_tags)
-    init_T(training_data, all_tags)
+    I = init_I(training_data, all_tags)
+    T = init_T(training_data, all_tags)
+    M = init_M(training_data, all_tags)
 
-    print("Starting the tagging process.")
+    # initialize the other inputs to viterbi:
+    E = init_E(args.testfile)
+
+    print("*************************** TAGGING ********************************")
+
+    viterbi(E[0], all_tags, I, T, M)
