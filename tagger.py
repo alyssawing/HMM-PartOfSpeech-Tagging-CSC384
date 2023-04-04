@@ -4,6 +4,8 @@ import argparse
 import numpy as np
 import time
 
+# Still TODO: optimize, write outputfile function, account for unknown words
+
 def init_training(training_list):
     '''Given a list of training files, parse through each file to create a list 
     of lists, where each list is a sentence. Each element in each sentence is a
@@ -88,10 +90,6 @@ def init_T(training_data, all_tags):
         if np.sum(T[i]) != 0: # to prevent dividing 
             T[i] = T[i] / np.sum(T[i])
 
-    # confirm that the sum of each row is 1 or 0:
-    # for i in range(len(all_tags)):
-    #     print("sum of row {} is {}".format(i, np.sum(T[i])))
-
     return T
 
 def init_M(training_data, all_tags):
@@ -159,28 +157,16 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
 
     # determine values for time step 0 (base case):
     prob[0] = I*M[E[0]]
-    # print("length of prob[0]: ", len(prob[0]))
-    # print("corresponding label: ", S[np.argmax(prob[0])])
-    # print(prob[0])
+
     prev[0] = None
     x = np.argmax(prob[0])
-    # print("x is: ", x)
-    # print("corresponding label: ", S[x])
+
 
     # time steps 1 to length(E) (recursive case):
     for t in range(1, len(E)): # t is the index of the current word
         for i in range(0, len(S)): # i is the index of the current tag
 
-            maxp = -1 # initializing the max probability that we want
-            x = None # initializing the index of the max probability
             x = np.argmax(prob[t-1]*T.T[i]*M[E[t]][i])
-            # print("x is : ", x)
-            # for j in range(len(S)): # j is the index of the previous tag. TODO: optimize with numpy
-            #     curp = prob[t-1][j]*T[j][i]*M[E[t]][i] # current probability
-            #     if curp > maxp:
-            #         maxp = curp
-            #         x = j
-
             prob[t][i] = prob[t-1][x] * T[x][i] * M[E[t]][i] # the probability of the current tag given the previous tag
             prev[t][i] = x # the previous tag that maximizes the probability
         
@@ -195,9 +181,7 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
     tag_sequence = []
 
     # Backtrack to find the most likely sequence of tags:
-
-    # in the last row of prob, get the index of the max probability:
-    x = np.argmax(prob[len(E)-1])
+    x = np.argmax(prob[len(E)-1]) # in the last row of prob, get the index of the max probability:
     # in the last row of prev, get the tag corresponding to that maxp index:
     tag_sequence = np.concatenate((int(x), tag_sequence), axis=None)
 
@@ -314,7 +298,6 @@ if __name__ == '__main__':
     # initialize the training data
     training_data = init_training(training_list)
 
-
     # training_data = training_data[0:2] # shorten training to 2 sentences for testing
     # for sentence in training_data:
     #     print(sentence)
@@ -341,5 +324,4 @@ if __name__ == '__main__':
 
     time2 = time.time()
     print("time taken is {}".format(time2-time1))
-
     print("accuracy is {}".format(get_accuracy(tag_guesses, answerfile, all_tags))) #TODO  - comment out later
