@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import numpy as np
+import time
 
 def init_training(training_list):
     '''Given a list of training files, parse through each file to create a list 
@@ -134,6 +135,10 @@ def init_E(test_file):
             E.append(tmp_sentence)
             tmp_sentence = []
     
+    # account for last sentence anyway if doesn't end in proper punctuation
+    if len(tmp_sentence) != 0:
+        E.append(tmp_sentence)
+
     # for sentence in E:
     #     print(sentence)
     #     print()
@@ -159,8 +164,8 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
     # print(prob[0])
     prev[0] = None
     x = np.argmax(prob[0])
-    print("x is: ", x)
-    print("corresponding label: ", S[x])
+    # print("x is: ", x)
+    # print("corresponding label: ", S[x])
 
     # time steps 1 to length(E) (recursive case):
     for t in range(1, len(E)): # t is the index of the current word
@@ -183,9 +188,9 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
         if np.sum(prob[t]) != 0:
             prob[t] = prob[t] / np.sum(prob[t])
 
-    for l in prev:
-        print(l)
-        print()
+    # for l in prev:
+    #     print(l)
+    #     print()
 
     tag_sequence = []
 
@@ -201,12 +206,67 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
         tag_sequence = np.concatenate((prev[t][int(x)], tag_sequence), axis=None)
         x = prev[t][int(x)]
 
-    print("tag_sequence: ", tag_sequence)
+    # print("tag_sequence: ", tag_sequence)
     # show tags corresponding to each tag in tag sequence:
-    for i in range(len(tag_sequence)):
-        print(S[int(tag_sequence[i])])
+    # for i in range(len(tag_sequence)):
+        # print(S[int(tag_sequence[i])])
 
     return tag_sequence
+
+def get_accuracy(tag_guesses, answerfile, all_tags):
+    '''After running Viterbi, compare the predicted tag sequence to the actual
+    tag sequence in the test file. Return the accuracy. The inputs are:
+    - tag_guesses: list of lists of the predicted tags for each sentence in the test file
+    - answerfile: the test file with the answers
+    - all_tags: list of all possible tags'''
+
+    f = open(answerfile, 'r')
+    W = list(map(str.rstrip, f.readlines())) # remove the newline characters too. list of all words
+    f.close()
+
+    # get the true tag sequence:
+    true_tag_sequence = []
+    f = open(answerfile, 'r')
+    words = f.readlines() # words is a list, every element being: "word : tag"
+    tmp_sentence = [] # list of word, tag pairs (temporary; overwritten after every sentence found)
+
+    for w in words: # w has format: "word : tag"
+        w = w.split(" : ") # split w into a list with format: w = ["word", "tag"]
+
+        # if there's no index error and has a newline character in it (e.g. "NP0\n"), remove it
+        if w[1] != '' and w[1][-1:] == '\n':
+            w[1] = w[1][:-1]
+        tmp_sentence.append(w)
+
+        # if the word is "." or "!" or "?" or ";" then it's the end of a sentence, so restart the sentence list
+        if w[0] == "." or w[0] == "!" or w[0] == "?" or w[0] == ";":
+            true_tag_sequence.append(tmp_sentence)
+            tmp_sentence = []
+    
+    # if finished the file and still contents in tmp_sentence, append the last "sentence" anyway
+    if len(tmp_sentence) != 0:
+        true_tag_sequence.append(tmp_sentence) 
+        tmp_sentence = []
+    f.close()
+    
+    # format of true_tag_sequence: list of lists of word, tag pairs
+    
+    # for sentence in true_tag_sequence:
+    #     print(sentence)
+    #     print()
+
+    # for every sentence and every tag, compare and get accuracy:
+    correct = 0
+    total = 0
+    for i in range(len(true_tag_sequence)):
+        for j in range(len(true_tag_sequence[i])):
+            total += 1
+            # compare the actual tag to the predicted tag:
+            # print(tag_guesses)
+            if true_tag_sequence[i][j][1] == all_tags[int(tag_guesses[i][j])]:
+                correct += 1
+
+    return correct/total
 
 if __name__ == '__main__':
 
@@ -234,10 +294,10 @@ if __name__ == '__main__':
 
     training_list = args.trainingfiles[0]
     print("training files are {}".format(training_list))
-
     print("test file is {}".format(args.testfile))
-
     print("output file is {}".format(args.outputfile))
+
+    time1 = time.time()
 
     print("************************* INITIALIZING DATA ************************")
 
@@ -255,10 +315,10 @@ if __name__ == '__main__':
     training_data = init_training(training_list)
 
 
-    training_data = training_data[0:2] # shorten training to 2 sentences for testing
-    for sentence in training_data:
-        print(sentence)
-        print("")
+    # training_data = training_data[0:2] # shorten training to 2 sentences for testing
+    # for sentence in training_data:
+    #     print(sentence)
+    #     print("")
     # initialize the 3 probability matrices
     I = init_I(training_data, all_tags)
     # print(I)
@@ -273,4 +333,13 @@ if __name__ == '__main__':
 
     print("*************************** TAGGING ********************************")
 
-    viterbi(E[0], all_tags, I, T, M)
+    tag_guesses = []
+    for i in range(len(E)):
+        tag_guesses.append(viterbi(E[i], all_tags, I, T, M))
+    
+    answerfile = training_list[0] #  for now, test on the same file that was used to train
+
+    time2 = time.time()
+    print("time taken is {}".format(time2-time1))
+
+    print("accuracy is {}".format(get_accuracy(tag_guesses, answerfile, all_tags))) #TODO  - comment out later
