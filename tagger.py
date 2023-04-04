@@ -252,6 +252,28 @@ def get_accuracy(tag_guesses, answerfile, all_tags):
 
     return correct/total
 
+def write_output(tag_guesses, testfile, outputfile, all_tags):
+    '''Write the predicted tag sequence to a file. The inputs are:
+    - tag_guesses: list of lists of the predicted tags for each sentence in the test file
+    - testfile: the test file (just the words to add the tags to with format word : tag)
+    - outputfile: the file to write the output to with formaat word : tag on each line
+    - all_tags: list of all possible tags'''
+
+    # Read through every word (line) in the test file and add the : tag from the tag_guesses list:
+    f = open(testfile, 'r')
+    testwords = f.readlines() # words is a list, every element being: "word : tag"
+    # remove the newline characters too:
+    testwords = list(map(str.rstrip, testwords))
+    f.close()
+
+    # Write in the output file the word corresponding to the tag:
+    f = open(outputfile, 'w')
+    for sentence_i in range(len(tag_guesses)):
+        for word_i in range(len(tag_guesses[sentence_i])):
+            f.write(testwords[word_i] + " : " + all_tags[int(tag_guesses[sentence_i][word_i])] + "\n")
+
+    f.close()
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -321,6 +343,9 @@ if __name__ == '__main__':
         tag_guesses.append(viterbi(E[i], all_tags, I, T, M))
     
     answerfile = training_list[0] #  for now, test on the same file that was used to train
+
+    # write to output file:
+    write_output(tag_guesses, args.testfile, args.outputfile, all_tags)
 
     time2 = time.time()
     print("time taken is {}".format(time2-time1))
