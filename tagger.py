@@ -140,7 +140,7 @@ def init_E(test_file):
 
     return E
 
-def viterbi(E, S, I, T, M):
+def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for never seen before words
     '''Execute the Viterbi algorithm to predict the most likely sequence of tags.
     The inputs to the function are:
     - E: list of observations (all words in ONE sentence); e.g.  ["she", "walked", "downstairs", "."]
@@ -162,17 +162,51 @@ def viterbi(E, S, I, T, M):
     print("x is: ", x)
     print("corresponding label: ", S[x])
 
-    # time steps 1 to length(E) - 1 (recursive case):
-    for t in range(1, len(E)-1):
-        for i in range(0, len(S)-1):
-            x = np.argmax(prob[t-1][x]*T[x][i]*M[E[t]][i])
-            prob[t][i] = prob[t-1][x] * T[x][i] * M[E[t]][i]
-            prev[t][i] = x
+    # time steps 1 to length(E) (recursive case):
+    for t in range(1, len(E)): # t is the index of the current word
+        for i in range(0, len(S)): # i is the index of the current tag
 
-    # for l in prev:
-    #     print(l)
+            maxp = -1 # initializing the max probability that we want
+            x = None # initializing the index of the max probability
+            x = np.argmax(prob[t-1]*T.T[i]*M[E[t]][i])
+            # print("x is : ", x)
+            # for j in range(len(S)): # j is the index of the previous tag. TODO: optimize with numpy
+            #     curp = prob[t-1][j]*T[j][i]*M[E[t]][i] # current probability
+            #     if curp > maxp:
+            #         maxp = curp
+            #         x = j
 
-    return prob, prev
+            prob[t][i] = prob[t-1][x] * T[x][i] * M[E[t]][i] # the probability of the current tag given the previous tag
+            prev[t][i] = x # the previous tag that maximizes the probability
+        
+        # normalize to prevent probabilities from getting too small:
+        if np.sum(prob[t]) != 0:
+            prob[t] = prob[t] / np.sum(prob[t])
+
+    for l in prev:
+        print(l)
+        print()
+
+    tag_sequence = []
+
+    # Backtrack to find the most likely sequence of tags:
+
+    # in the last row of prob, get the index of the max probability:
+    x = np.argmax(prob[len(E)-1])
+    # in the last row of prev, get the tag corresponding to that maxp index:
+    tag_sequence = np.concatenate((int(x), tag_sequence), axis=None)
+
+    # now backtrack through prev to get the rest of the tags:
+    for t in range(len(E)-1, 0, -1): # go backwards from the last to the first row of prev
+        tag_sequence = np.concatenate((prev[t][int(x)], tag_sequence), axis=None)
+        x = prev[t][int(x)]
+
+    print("tag_sequence: ", tag_sequence)
+    # show tags corresponding to each tag in tag sequence:
+    for i in range(len(tag_sequence)):
+        print(S[int(tag_sequence[i])])
+
+    return tag_sequence
 
 if __name__ == '__main__':
 
@@ -219,14 +253,20 @@ if __name__ == '__main__':
 
     # initialize the training data
     training_data = init_training(training_list)
+
+
+    training_data = training_data[0:2] # shorten training to 2 sentences for testing
     for sentence in training_data:
         print(sentence)
         print("")
-
     # initialize the 3 probability matrices
     I = init_I(training_data, all_tags)
+    # print(I)
     T = init_T(training_data, all_tags)
+    # for line in T:
+    #     print(line)
     M = init_M(training_data, all_tags)
+    # print(M)
 
     # initialize the other inputs to viterbi:
     E = init_E(args.testfile)
