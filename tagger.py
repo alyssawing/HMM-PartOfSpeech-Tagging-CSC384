@@ -172,10 +172,12 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
 
     # create distribution (array with 91 elems) for unseen words;
     unknown_tagp = np.zeros(len(S))
-    unknown_tagp[S.index("NP0")] = 0.1 # nouns
+    unknown_tagp[S.index("NP0")] = 0.1 # proper nouns
     unknown_tagp[S.index("AJ0")] = 0.1 # adjectives
+    unknown_tagp[S.index("NN2")] = 0.1 # plural common nouns
+    unknown_tagp[S.index("NN1")] = 0.1 # singular common nouns
     # make the remaining values equal so it adds to 1:
-    unknown_tagp[unknown_tagp == 0] = 0.8 / (len(S) - 2)
+    unknown_tagp[unknown_tagp == 0] = 0.6 / (len(S) - 2)
 
     # time steps 1 to length(E) (recursive case):
     for t in range(1, len(E)): # t is the index of the current word
@@ -276,6 +278,8 @@ def get_accuracy(tag_guesses, answerfile, all_tags):
             # print(tag_guesses)
             if true_tag_sequence[i][j][1] == all_tags[int(tag_guesses[i][j])]:
                 correct += 1
+            else:
+                print("wrong guess for this word: ", true_tag_sequence[i][j][0], "expected tag: ", true_tag_sequence[i][j][1])
 
     return correct/total
 
@@ -300,8 +304,10 @@ def write_output(tag_guesses, E, outputfile, all_tags):
             # hardcode to ensure all punctuation correct:
             if E[sentence_i][word_i] == "." or E[sentence_i][word_i] == "!" or E[sentence_i][word_i] == "?" \
                 or E[sentence_i][word_i] == ";" or E[sentence_i][word_i] == "," or E[sentence_i][word_i] == ":":
+                # print("replaced punctuation")
                 f.write(E[sentence_i][word_i] + " : " + "PUN" + "\n")
             elif E[sentence_i][word_i] == '"':
+                # print("replaced quotation")
                 f.write(E[sentence_i][word_i] + " : " + "PUQ" + "\n")
             else:
                 f.write(E[sentence_i][word_i] + " : " + all_tags[int(tag_guesses[sentence_i][word_i])] + "\n")
@@ -383,5 +389,5 @@ if __name__ == '__main__':
     write_output(tag_guesses, E, args.outputfile, all_tags)
 
     time2 = time.time()
-    print("time taken is {}".format(time2-time1))
+    print("time taken is {}\n".format(time2-time1))
     print("accuracy is {}".format(get_accuracy(tag_guesses, answerfile, all_tags))) #TODO  - comment out later
