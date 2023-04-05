@@ -383,7 +383,7 @@ if __name__ == '__main__':
         tag_guesses.append(viterbi(E[i], all_tags, I, T, M))
     
     # answerfile = training_list[0] #  for now, test on the same file that was used to train
-    answerfile = "training1.txt" # for testing on first data set
+    answerfile = "training1.txt" # for testing on a specific dataset - MODIFY depending on what answers are
 
     # write to output file:
     write_output(tag_guesses, E, args.outputfile, all_tags)
