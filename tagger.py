@@ -59,12 +59,15 @@ def init_I(training_data, all_tags):
     first_tags = np.array(first_tags)
 
     # initialize the I matrix as a numpy list of 0's, the same length as all_tags:
-    I = np.zeros(len(all_tags))
+    I = np.zeros(len(all_tags)) 
 
     # for each tag in all_tags, count how many times it appears in first_tags and give its probability using numpy
     for i in range(len(all_tags)):
-        I[i] = np.count_nonzero(first_tags == all_tags[i]) / len(first_tags) # len(first_tags) is the total number of sentences
+        I[i] = np.count_nonzero(first_tags == all_tags[i]) # len(first_tags) is the total number of sentences
 
+    # add a small number to each elem in I to prevent 0 rows, and renormalize
+    I = I + 0.01
+    I = I / np.sum(I)
     # print(I)
     return I # each index in I corresponds to the index of the tag in all_tags
 
@@ -75,8 +78,8 @@ def init_T(training_data, all_tags):
     In other words, the elem at index ["NPO"]["ADJ"] is the probability of transitioning
     from an NPO tag to an ADJ tag.'''
     
-    # initialize T as a numpy 2D array of 0's, the same size as all_tags:
-    T = np.zeros((len(all_tags), len(all_tags)))
+    # initialize T as a numpy 2D array of 0.000001's, the same size as all_tags:
+    T = np.full((len(all_tags), len(all_tags)), 0.01) # to prevent 0 rows
     # print(len(all_tags))
 
     for sentence in training_data:
@@ -146,7 +149,7 @@ def init_E(test_file):
 def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for never seen before words
     '''Execute the Viterbi algorithm to predict the most likely sequence of tags.
     The inputs to the function are:
-    - E: list of observations (all words in ONE sentence); e.g.  ["she", "walked", "downstairs", "."]
+    - E: list of observations (all words in ONE sentence; test sentence); e.g.  ["she", "walked", "downstairs", "."]
     - S: set of hidden state values (set of all tags)
     - I: initial probabilities row vector; P(s0)
     - T: transition matrix; P(S_k+1 | S_k)
@@ -157,8 +160,7 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
 
     # determine values for time step 0 (base case):
     if E[0] not in M.keys():
-        # print("first word (for base case) not in M: ", E[0])
-        # at first, just assume a uniform distribution for all tags
+        # at first, just assume a uniform distribution for all tags (since I should be good enough)
         prob[0] = I*1/len(S) 
         pass
     else:
@@ -168,10 +170,10 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
     prev[0] = None
     x = np.argmax(prob[0])
 
-    # create distribution (array with 91 elems) for unseen words; make nouns and adjectives more likely:
+    # create distribution (array with 91 elems) for unseen words;
     unknown_tagp = np.zeros(len(S))
-    unknown_tagp[all_tags.index("NPO")] = 0.1
-    unknown_tagp[all_tags.index("ADJ")] = 0.1
+    unknown_tagp[S.index("NP0")] = 0.1 # nouns
+    unknown_tagp[S.index("AJ0")] = 0.1 # adjectives
     # make the remaining values equal so it adds to 1:
     unknown_tagp[unknown_tagp == 0] = 0.8 / (len(S) - 2)
 
@@ -183,8 +185,8 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
             if E[t] not in M.keys():
                 # print("word not in M: ", E[t])
                 #TODO - set prob[t][i] and prev[t][i] to something
-                x = np.argmax(prob[t-1]*T.T[i]*1/len(S))
-                prob[t][i] = prob[t-1][x] * T[x][i] * 1/len(S) # the probability of the current tag given the previous tag
+                x = np.argmax(prob[t-1]*T.T[i]*unknown_tagp[i]) # or * 1/len(S))
+                prob[t][i] = prob[t-1][x] * T[x][i] * unknown_tagp[i] # the probability of the current tag given the previous tag
                 prev[t][i] = x # the previous tag that maximizes the probability
 
             else: 
@@ -196,7 +198,7 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
         if np.sum(prob[t]) != 0:
             prob[t] = prob[t] / np.sum(prob[t])
         else:
-            # print("PROBLEM: all of prob[t] is 0 for t = ", t) # TODO - fix this
+            print("PROBLEM: all of prob[t] is 0 for E[t] = ", E[t]) # TODO - fix this
             pass
 
     # for l in prev:
@@ -277,25 +279,32 @@ def get_accuracy(tag_guesses, answerfile, all_tags):
 
     return correct/total
 
-def write_output(tag_guesses, testfile, outputfile, all_tags):
+def write_output(tag_guesses, E, outputfile, all_tags):
     '''Write the predicted tag sequence to a file. The inputs are:
     - tag_guesses: list of lists of the predicted tags for each sentence in the test file
-    - testfile: the test file (just the words to add the tags to with format word : tag)
+    - E: the test list of lists (just the words to add the tags to with format word : tag)
     - outputfile: the file to write the output to with formaat word : tag on each line
     - all_tags: list of all possible tags'''
 
     # Read through every word (line) in the test file and add the : tag from the tag_guesses list:
-    f = open(testfile, 'r')
-    testwords = f.readlines() # words is a list, every element being: "word : tag"
-    # remove the newline characters too:
-    testwords = list(map(str.rstrip, testwords))
-    f.close()
+    # f = open(testfile, 'r')
+    # testwords = f.readlines() # words is a list, every element being: "word : tag"
+    # # remove the newline characters too:
+    # testwords = list(map(str.rstrip, testwords))
+    # f.close()
 
     # Write in the output file the word corresponding to the tag:
     f = open(outputfile, 'w')
     for sentence_i in range(len(tag_guesses)):
         for word_i in range(len(tag_guesses[sentence_i])):
-            f.write(testwords[word_i] + " : " + all_tags[int(tag_guesses[sentence_i][word_i])] + "\n")
+            # hardcode to ensure all punctuation correct:
+            if E[sentence_i][word_i] == "." or E[sentence_i][word_i] == "!" or E[sentence_i][word_i] == "?" \
+                or E[sentence_i][word_i] == ";" or E[sentence_i][word_i] == "," or E[sentence_i][word_i] == ":":
+                f.write(E[sentence_i][word_i] + " : " + "PUN" + "\n")
+            elif E[sentence_i][word_i] == '"':
+                f.write(E[sentence_i][word_i] + " : " + "PUQ" + "\n")
+            else:
+                f.write(E[sentence_i][word_i] + " : " + all_tags[int(tag_guesses[sentence_i][word_i])] + "\n")
 
     f.close()
 
@@ -371,7 +380,7 @@ if __name__ == '__main__':
     answerfile = "training1.txt" # for testing on first data set
 
     # write to output file:
-    write_output(tag_guesses, args.testfile, args.outputfile, all_tags)
+    write_output(tag_guesses, E, args.outputfile, all_tags)
 
     time2 = time.time()
     print("time taken is {}".format(time2-time1))
