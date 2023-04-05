@@ -21,9 +21,16 @@ def init_training(training_list):
 
         f = open(train_file, 'r')
         words = f.readlines() # words is a list, every element being: "word : tag"
+        # remove any empty lines:
+        # words = [w for w in words if w != '\n']
         tmp_sentence = [] # list of word, tag pairs (temporary; overwritten after every sentence found)
 
         for w in words: # w has format: "word : tag"
+
+            #if it's a blank line, ignore it:
+            if w == '\n':
+                continue
+
             w = w.split(" : ") # split w into a list with format: w = ["word", "tag"]
 
             # if the tag has a newline character in it (e.g. "NP0\n"), remove it
@@ -279,7 +286,8 @@ def get_accuracy(tag_guesses, answerfile, all_tags):
             if true_tag_sequence[i][j][1] == all_tags[int(tag_guesses[i][j])]:
                 correct += 1
             else:
-                print("wrong guess for this word: ", true_tag_sequence[i][j][0], "expected tag: ", true_tag_sequence[i][j][1])
+                # print("wrong guess for this word: ", true_tag_sequence[i][j][0], "expected tag: ", true_tag_sequence[i][j][1])
+                pass
 
     return correct/total
 
@@ -383,11 +391,11 @@ if __name__ == '__main__':
         tag_guesses.append(viterbi(E[i], all_tags, I, T, M))
     
     # answerfile = training_list[0] #  for now, test on the same file that was used to train
-    answerfile = "training1.txt" # for testing on a specific dataset - MODIFY depending on what answers are
+    answerfile = "training2.txt" # for testing on a specific dataset - MODIFY depending on what answers are
 
     # write to output file:
     write_output(tag_guesses, E, args.outputfile, all_tags)
 
     time2 = time.time()
     print("time taken is {}\n".format(time2-time1))
-    print("accuracy is {}".format(get_accuracy(tag_guesses, answerfile, all_tags))) #TODO  - comment out later
+    # print("accuracy is {}".format(get_accuracy(tag_guesses, answerfile, all_tags))) #TODO  - comment out later
