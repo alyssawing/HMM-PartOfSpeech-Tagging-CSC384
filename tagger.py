@@ -156,23 +156,48 @@ def viterbi(E, S, I, T, M): #TODO - make faster (vectorize?) and account for nev
     prev = np.zeros((len(E), len(S)))
 
     # determine values for time step 0 (base case):
-    prob[0] = I*M[E[0]]
+    if E[0] not in M.keys():
+        # print("first word (for base case) not in M: ", E[0])
+        # at first, just assume a uniform distribution for all tags
+        prob[0] = I*1/len(S) 
+        pass
+    else:
+        # print("base case M[E[0]]: ", M[E[0]])
+        prob[0] = I*M[E[0]]
 
     prev[0] = None
     x = np.argmax(prob[0])
 
+    # create distribution (array with 91 elems) for unseen words; make nouns and adjectives more likely:
+    unknown_tagp = np.zeros(len(S))
+    unknown_tagp[all_tags.index("NPO")] = 0.1
+    unknown_tagp[all_tags.index("ADJ")] = 0.1
+    # make the remaining values equal so it adds to 1:
+    unknown_tagp[unknown_tagp == 0] = 0.8 / (len(S) - 2)
 
     # time steps 1 to length(E) (recursive case):
     for t in range(1, len(E)): # t is the index of the current word
         for i in range(0, len(S)): # i is the index of the current tag
 
-            x = np.argmax(prob[t-1]*T.T[i]*M[E[t]][i])
-            prob[t][i] = prob[t-1][x] * T[x][i] * M[E[t]][i] # the probability of the current tag given the previous tag
-            prev[t][i] = x # the previous tag that maximizes the probability
+            # if it's a word that hasn't been seen before: TODO. Also TODO - deal with tags never appearing (don't make 0)
+            if E[t] not in M.keys():
+                # print("word not in M: ", E[t])
+                #TODO - set prob[t][i] and prev[t][i] to something
+                x = np.argmax(prob[t-1]*T.T[i]*1/len(S))
+                prob[t][i] = prob[t-1][x] * T[x][i] * 1/len(S) # the probability of the current tag given the previous tag
+                prev[t][i] = x # the previous tag that maximizes the probability
+
+            else: 
+                x = np.argmax(prob[t-1]*T.T[i]*M[E[t]][i])
+                prob[t][i] = prob[t-1][x] * T[x][i] * M[E[t]][i] # the probability of the current tag given the previous tag
+                prev[t][i] = x # the previous tag that maximizes the probability
         
         # normalize to prevent probabilities from getting too small:
         if np.sum(prob[t]) != 0:
             prob[t] = prob[t] / np.sum(prob[t])
+        else:
+            # print("PROBLEM: all of prob[t] is 0 for t = ", t) # TODO - fix this
+            pass
 
     # for l in prev:
     #     print(l)
@@ -339,10 +364,11 @@ if __name__ == '__main__':
     print("*************************** TAGGING ********************************")
 
     tag_guesses = []
-    for i in range(len(E)):
+    for i in range(len(E)): # for every sentence
         tag_guesses.append(viterbi(E[i], all_tags, I, T, M))
     
-    answerfile = training_list[0] #  for now, test on the same file that was used to train
+    # answerfile = training_list[0] #  for now, test on the same file that was used to train
+    answerfile = "training1.txt" # for testing on first data set
 
     # write to output file:
     write_output(tag_guesses, args.testfile, args.outputfile, all_tags)
